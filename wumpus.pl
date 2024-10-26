@@ -124,14 +124,26 @@ do(light(Item)):- light(Item), !.
 do(quit):- quit, !.
 do(_):- write('I don\'t understand that command.'), nl.
 
-% Movement logic
-goto(Place):-
-  can_go(Place),
-  check_conditions(Place),
-  moveto(Place),
-  write('You moved to '), write(Place), write('!'),nl.
+% Attempt to move to a specified place
+goto(Place) :-
+    room(Place),  % Check if it's a valid room
+    here(Here),
+    (Here = Place ->
+        write('You are already at '), write(Place), write('.'), nl
+    ;
+        can_go(Place) ->
+            check_conditions(Place),
+            moveto(Place),
+            write('You moved to '), write(Place), write('!'), nl
+        ;
+        write('You can\'t get to '), write(Place), write(' from here.'), nl
+    ).
+goto(Place) :-
+    \+ room(Place),  % Not a valid room
+    write(Place), write(' is not a valid location.'), nl.
 goto(_):- nl.
 
+% Check if movement to a place is possible
 can_go(Place):-
   here(Here),
   connect(Here,Place),!.
@@ -143,16 +155,18 @@ can_go(Place):-
 connect(X,Y):- door(X,Y).
 connect(X,Y):- door(Y,X).
 
+% Check conditions for entering a location
 check_conditions(river) :-
-  lit(hay), !.
+    lit(hay), !.
 check_conditions(river) :-
-  write('It is too dark to enter, you need some light.'),
-  !, fail.
+    write('It is too dark to enter the river. You need some light.'), nl,
+    !, fail.
 check_conditions(_).
 
-moveto(Place):-
-  retract(here(_)),
-  asserta(here(Place)).
+% Move to a new location
+moveto(Place) :-
+    retract(here(_)),
+    asserta(here(Place)).
 
 % Look around
 look:-
@@ -272,65 +286,127 @@ buy(Item) :-
     write('You cannot buy that type of item. '), write(Item), write(' is not a valid item.'),
     nl.
 
-sell(boat):-
-  here(dock),
-  have(diamond),  % If they have the diamond, they can sell the boat
-  money(M),
-  NewM is M + 100,
-  retract(money(M)),
-  asserta(money(NewM)),
-  nl,
-  write('You sold the boat for 100 coins.'),
-  nl, nl, !.
-sell(boat):-
-  here(dock),
-  \+ have(diamond),
-  nl,
-  write('You need to get the diamond before you can sell the boat.'),
-  nl, nl, !.
-sell(diamond):-
-  here(canyon),
-  have(diamond),
-  retract(have(diamond)),
-  asserta(have(bow)),
-  nl,
-  write('The archer trades you a bow for the diamond.'),
-  nl, nl, !.
-sell(diamond):-
-  here(canyon),
-  \+ have(diamond),
-  nl,
-  write('You don\'t have a diamond to trade.'),
-  nl, nl, !.
-sell(Item):-
-  nl,
-  write('You cannot sell the '), write(Item), write(' here.'),
-  nl, nl.
+% Sell boat at the dock
+sell(boat) :-
+    here(dock),
+    have(boat),
+    have(diamond),
+    money(M),
+    NewM is M + 100,
+    retract(money(M)),
+    asserta(money(NewM)),
+    retract(have(boat)),
+    write('You sold the boat for 100 coins.'), nl, !.
+% Attempt to sell boat without having it
+sell(boat) :-
+    here(dock),
+    \+ have(boat),
+    write('You don\'t have a boat to sell.'), nl, !.
+% Attempt to sell boat without diamond
+sell(boat) :-
+    here(dock),
+    have(boat),
+    \+ have(diamond),
+    write('You need to get the diamond before you can sell the boat.'), nl, !.
+% Trade diamond for bow at the canyon
+sell(diamond) :-
+    here(canyon),
+    have(diamond),
+    retract(have(diamond)),
+    asserta(have(bow)),
+    write('The archer trades you a bow for the diamond.'), nl, !.
+% Attempt to trade diamond without having it
+sell(diamond) :-
+    here(canyon),
+    \+ have(diamond),
+    write('You don\'t have a diamond to trade.'), nl, !.
+% Attempt to sell a valid item in the wrong location
+sell(Item) :-
+    item(Item),
+    \+ have(Item),
+    write('You don\'t have a '), write(Item), write(' to sell.'), nl, !.
+% Attempt to sell a valid item in the wrong location
+sell(Item) :-
+    item(Item),
+    write('You cannot sell the '), write(Item), write(' here.'), nl, !.
+% Attempt to sell an invalid item
+sell(Item) :-
+    \+ item(Item),
+    write('You cannot sell a '), write(Item), write('. It is not a valid item.'), nl.
                                                             
-ride(boat):-
-  here(river),
-  have(diamond),  % If they have the diamond, they can use the boat
-  moveto(dock),
-  write('You ride the boat to the dock.'),nl,
-  look, !.
-ride(boat):-
-  here(river),
-  \+ have(diamond),
-  write('You need to take the diamond first before you can use the boat.'),nl, !.
-ride(Transport):-
-  write('You cannot ride the '), write(Transport), write(' here.'),nl.
-ride(Transport):-
-  write('You cannot ride the '), write(Transport), write(' here.'), nl.
+%% Transportation System
 
-% Lighting system
-light(hay):-
-  have(hay),
-  have(matches),
-  asserta(lit(hay)),
-  write('You light the hay, illuminating the darkness.'), nl, !.
-light(Item):-
-  write('You cannot light the '), write(Item), write('.'), nl.
+% Ride the boat from river to dock
+ride(boat) :-
+    here(river),
+    take(boat),
+    have(diamond),
+    moveto(dock),
+    write('You ride the boat to the dock.'), nl,
+    look, !.
 
+% Attempt to ride boat without having it
+ride(boat) :-
+    here(river),
+    \+ have(boat),
+    write('You don\'t have a boat to ride.'), nl, !.
+
+% Attempt to ride boat without diamond
+ride(boat) :-
+    here(river),
+    have(boat),
+    \+ have(diamond),
+    write('You need to take the diamond first before you can use the boat.'), nl, !.
+
+% Attempt to ride boat in wrong location
+ride(boat) :-
+    \+ here(river),
+    write('You can only ride the boat at the river.'), nl, !.
+
+% Attempt to ride a valid transport item
+ride(Transport) :-
+    item(Transport),
+    write('You cannot ride the '), write(Transport), write(' here.'), nl, !.
+
+% Attempt to ride an invalid item
+ride(Transport) :-
+    \+ item(Transport),
+    write('You cannot ride a '), write(Transport), write('. It is not a valid transport.'), nl.
+
+%% Lighting System
+
+% Light the hay if player has hay and matches
+light(hay) :-
+    have(hay),
+    have(matches),
+    asserta(lit(hay)),
+    write('You light the hay, illuminating the darkness.'), nl, !.
+
+% Attempt to light hay without matches
+light(hay) :-
+    have(hay),
+    \+ have(matches),
+    write('You need matches to light the hay.'), nl, !.
+
+% Attempt to light hay without having it
+light(hay) :-
+    \+ have(hay),
+    write('You don\'t have any hay to light.'), nl, !.
+
+% Attempt to light matches (which can't be lit on their own)
+light(matches) :-
+    have(matches),
+    write('You can\'t light the matches on their own. Try lighting something with them.'), nl, !.
+
+% Attempt to light a valid item that can't be lit
+light(Item) :-
+    item(Item),
+    write('You cannot light the '), write(Item), write('.'), nl, !.
+
+% Attempt to light an invalid item
+light(Item) :-
+    \+ item(Item),
+    write('You cannot light a '), write(Item), write('. It is not a valid item.'), nl.
 % Quit game
 quit:-
   write('Thanks for playing!'), nl.
