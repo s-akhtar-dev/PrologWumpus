@@ -2,27 +2,37 @@
 % A text-based adventure game implemented in Prolog
 % Modified from the original Nani Search game by Amzi! inc.
 
-main:- wumpus_world.
+% ANSI color codes
+color_code(red,    '\u001b[31m').
+color_code(green,  '\u001b[32m').
+color_code(yellow, '\u001b[33m').
+color_code(blue,   '\u001b[34m').
+color_code(reset,  '\u001b[0m').
 
-wumpus_world:-
-  write('WUMPUS WORLD - A Text Adventure Game'),nl,
-  write('Your quest is to slay the fearsome Wumpus!'),nl,
-  nl,
-  write('Commands you can use:'),nl,
-  write('  look.              - Look around'),nl,
-  write('  inventory.         - Check your possessions'),nl,
-  write('  talk to person.    - Talk to someone'),nl,
-  write('  go to place.       - Travel to a location'),nl,
-  write('  fight monster.     - Battle a monster'),nl,
-  write('  buy item.          - Purchase an item'),nl,
-  write('  sell item.         - Sell an item'),nl,
-  write('  take item.         - Pick up an item'),nl,
-  write('  ride transport.    - Use transportation'),nl,
-  write('  light item.        - Light something'),nl,
-  nl,
-  write('Begin your adventure! Type "look." to start.'),nl,
-  look,
-  command_loop.
+% Color output helper predicate
+write_colored(Color, Text) :-
+    color_code(Color, Code),
+    color_code(reset, Reset),
+    format('~w~w~w', [Code, Text, Reset]).
+
+main :- wumpus_world.
+
+wumpus_world :-
+    write_colored(yellow, 'WUMPUS WORLD - A Text Adventure Game\n'),
+    write('Your quest is to slay the fearsome Wumpus!\n\n'),
+    write_colored(green, 'Commands you can use:\n'),
+    write('  look.              - Look around\n'),
+    write('  inventory.         - Check your possessions\n'),
+    write('  talk to person.    - Talk to someone\n'),
+    write('  go to place.       - Travel to a location\n'),
+    write('  fight monster.     - Battle a monster\n'),
+    write('  buy item.          - Purchase an item\n'),
+    write('  sell item.         - Sell an item\n'),
+    write('  take item.         - Pick up an item\n'),
+    write('  ride transport.    - Use transportation\n'),
+    write('  light item.        - Light something\n\n'),
+    write_colored(blue, 'Begin your adventure! Type "look." to start.\n'),
+    command_loop.
 
 % Rooms/locations
 room(prairie).
@@ -50,8 +60,8 @@ door(town, shop).
 door(woods, forest).
 door(sinkhole, cave).
 door(cave, river).
-door(river, dock).  % Added connection for boat travel
-door(dock, town).   % Added connection back to town
+door(river, dock).
+door(dock, town).
 
 % NPCs and monsters
 npc(archer).
@@ -69,7 +79,7 @@ item(arrow).
 item(bow).
 item(boat).
 
-% Initial state
+% Dynamic predicates
 :- dynamic location/2.
 :- dynamic here/1.
 :- dynamic have/1.
@@ -77,131 +87,157 @@ item(boat).
 :- dynamic lit/1.
 :- dynamic defeated/1.
 
-% Initial facts
+% Initial game state
 init_game :-
-  retractall(location(_, _)),
-  retractall(here(_)),
-  retractall(have(_)),
-  retractall(money(_)),
-  retractall(lit(_)),
-  retractall(defeated(_)),
-  asserta(here(prairie)),
-  asserta(location(matches, foothills)),
-  asserta(location(hay, woods)),
-  asserta(location(diamond, river)),
-  asserta(location(archer, canyon)),
-  asserta(location(fisherman, dock)),
-  asserta(location(blacksmith, shop)),
-  asserta(location(troll, mountain)),
-  asserta(location(wumpus, forest)),
-  asserta(location(boat, river)),
-  asserta(money(0)).
+    retractall(location(_, _)),
+    retractall(here(_)),
+    retractall(have(_)),
+    retractall(money(_)),
+    retractall(lit(_)),
+    retractall(defeated(_)),
+    asserta(here(prairie)),
+    asserta(location(matches, foothills)),
+    asserta(location(hay, woods)),
+    asserta(location(diamond, river)),
+    asserta(location(archer, canyon)),
+    asserta(location(fisherman, dock)),
+    asserta(location(blacksmith, shop)),
+    asserta(location(troll, mountain)),
+    asserta(location(wumpus, forest)),
+    asserta(location(boat, river)),
+    asserta(money(0)).
 
 % Command processing
-command_loop:-
-  repeat,
-  get_command(X),
-  do(X),
-  (victory; X == quit).
+command_loop :-
+    repeat,
+    get_command(X),
+    do(X),
+    (victory; X == quit).
 
 % Victory condition
-victory:-
-  defeated(wumpus),
-  write('Congratulations! You have slain the Wumpus and won the game!'),nl.
+victory :-
+    defeated(wumpus),
+    write_colored(green, 'Congratulations! You have slain the Wumpus and won the game!\n').
 
 % Command handlers
-do(go(Place)):- goto(Place), !.
-do(look):- look, !.
-do(inventory):- inventory, !.
-do(talk(Person)):- talk(Person), !.
-do(fight(Monster)):- fight(Monster), !.
-do(buy(Item)):- buy(Item), !.
-do(sell(Item)):- sell(Item), !.
-do(take(Item)):- take(Item), !.
-do(ride(Transport)):- ride(Transport), !.
-do(light(Item)):- light(Item), !.
-do(quit):- quit, !.
-do(_):- write('I don''t understand that command.'), nl.
+do(go(Place)) :- goto(Place), !.
+do(look) :- look, !.
+do(inventory) :- inventory, !.
+do(talk(Person)) :- talk(Person), !.
+do(fight(Monster)) :- fight(Monster), !.
+do(buy(Item)) :- buy(Item), !.
+do(sell(Item)) :- sell(Item), !.
+do(take(Item)) :- take(Item), !.
+do(ride(Transport)) :- ride(Transport), !.
+do(light(Item)) :- light(Item), !.
+do(quit) :- quit, !.
+do(_) :- write_colored(red, 'I don\'t understand that command.\n').
 
-% Movement logic
-goto(Place):-
-  can_go(Place),
-  check_conditions(Place),
-  moveto(Place),
-  look.
-goto(_):- look.
+% Movement logic with river visibility
+goto(Place) :-
+    can_go(Place),
+    check_conditions(Place),
+    moveto(Place),
+    look.
+goto(_) :- look.
 
-can_go(Place):-
-  here(Here),
-  connect(Here,Place),!.
-can_go(Place):-
-  write('You can''t get to '), write(Place), write(' from here.'), nl,
-  fail.
+can_go(Place) :-
+    here(Here),
+    connect(Here, Place),
+    visible_location(Place), !.
+can_go(Place) :-
+    write_colored(red, 'You can\'t get to '),
+    write(Place),
+    write(' from here.\n'),
+    fail.
 
-connect(X,Y):- door(X,Y).
-connect(X,Y):- door(Y,X).
+% Location visibility check
+visible_location(river) :-
+    lit(hay), !.
+visible_location(Place) :-
+    Place \= river.
+
+connect(X, Y) :- door(X, Y).
+connect(X, Y) :- door(Y, X).
 
 check_conditions(river) :-
-  lit(hay), !.
+    lit(hay), !.
 check_conditions(river) :-
-  write('It''s too dark to enter. You need some light.'), nl,
-  !, fail.
+    write_colored(red, 'It\'s too dark to enter. You need some light.\n'),
+    !, fail.
 check_conditions(_).
 
-moveto(Place):-
-  retract(here(_)),
-  asserta(here(Place)).
+moveto(Place) :-
+    retract(here(_)),
+    asserta(here(Place)).
 
-% Look around
-look:-
-  here(Here),
-  write('You are at the '), write(Here), nl,
-  write('You can see:'), nl,
-  list_visible(Here),
-  write('You can go to:'), nl,
-  list_connections(Here).
+% Look around with improved visibility
+look :-
+    here(Here),
+    write('You are at the '),
+    write_colored(green, Here),
+    nl,
+    write_colored(yellow, 'You can see:\n'),
+    list_visible(Here),
+    write_colored(yellow, 'You can go to:\n'),
+    list_connections(Here).
 
-list_visible(Place):-
-  location(X,Place),
-  tab(2),write(X),nl,
-  fail.
+list_visible(Place) :-
+    location(X, Place),
+    (visible_location(Place) -> 
+        write('  '),
+        write_colored(blue, X),
+        nl
+    ; true),
+    fail.
 list_visible(_).
 
-list_connections(Place):-
-  connect(Place,X),
-  tab(2),write(X),nl,
-  fail.
+list_connections(Place) :-
+    connect(Place, X),
+    (visible_location(X) ->
+        write('  '),
+        write_colored(green, X),
+        nl
+    ; true),
+    fail.
 list_connections(_).
 
-% Inventory management with improved formatting
-inventory:-
-  nl,
-  write('You have:'), nl,
-  list_possessions,
-  nl,
-  money(M),
-  write('Money: '), write(M), write(' coins'), nl,
-  nl.
+% Inventory management
+inventory :-
+    nl,
+    write_colored(yellow, 'You have:\n'),
+    list_possessions,
+    nl,
+    money(M),
+    write('Money: '),
+    write_colored(yellow, M),
+    write(' coins\n'),
+    nl.
 
-list_possessions:-
-  have(X),
-  write('  '), write(X), nl,
-  fail.
+list_possessions :-
+    have(X),
+    write('  '),
+    write_colored(blue, X),
+    nl,
+    fail.
 list_possessions.
 
-% Item manipulation with fixed handling
-take(Item):-
-  here(Here),
-  location(Item,Here),
-  retract(location(Item,Here)),
-  asserta(have(Item)),
-  nl,
-  write('You took the '), write(Item), 
-  nl, nl, !.
-take(Item):-
-  nl,
-  write('There is no '), write(Item), write(' here.'), 
-  nl, nl.
+% Item manipulation
+take(Item) :-
+    here(Here),
+    location(Item, Here),
+    retract(location(Item, Here)),
+    asserta(have(Item)),
+    nl,
+    write('You took the '),
+    write_colored(green, Item),
+    nl, nl, !.
+take(Item) :-
+    nl,
+    write('There is no '),
+    write_colored(red, Item),
+    write(' here.'),
+    nl, nl.
                                                     
 % NPC interaction
 talk(Person):-
@@ -290,7 +326,7 @@ sell(diamond):-
   here(canyon),
   \+ have(diamond),
   nl,
-  write('You don''t have a diamond to trade.'),
+  write('You do not have a diamond to trade.'),
   nl, nl, !.
 sell(Item):-
   nl,
@@ -338,7 +374,7 @@ get_command(C) :-
   tokenize_atom(String, L),
   command(C,L), !.
 get_command(_) :- 
-  write('I don''t understand, please try again.'), nl,
+  write('I do not understand, please try again.'), nl,
   fail.
 
 command(C,L) :- elim(NL,L), C =.. NL, !.
