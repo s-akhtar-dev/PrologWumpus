@@ -1,11 +1,24 @@
-% Wumpus World Adventure Game
-% A text-based adventure game implemented in Prolog
-% Modified from the original Nani Search game by Amzi! inc. and by Dr. Cliburn
+% =======================
+% WUMPUS WORLD ADVENTURE GAME
+% =======================
+% 
+% This is a text-based adventure game implemented in Prolog.
+% Modified from the original Nani Search game by Amzi! inc. and Dr. Cliburn.
+% In this game, the player must navigate through various locations, 
+% interact with NPCs, gather items, and eventually slay the Wumpus.
+%
 % Authors: Sarah Akhtar and Kieran Monks
 % Date: October 26th, 2024
 
-main:- wumpus_world.
+% =======================
+% Main Game Control
+% =======================
 
+% Entry point to start the game by invoking wumpus_world
+main:- 
+    wumpus_world.
+
+% Initializes and begins the Wumpus World adventure game
 wumpus_world:-
   write('WUMPUS WORLD - A Text Adventure Game'),nl,
   write('Your quest is to slay the Wumpus!'),nl,
@@ -25,7 +38,11 @@ wumpus_world:-
   write('Begin your adventure! Type "look." to start.'),nl,
   command_loop.
 
-% Rooms/locations
+% =======================
+% Game World Definition
+% =======================
+
+% Locations in the wumpus world
 room(prairie).
 room(foothills).
 room(town).
@@ -39,7 +56,7 @@ room(mountain).
 room(canyon).
 room(forest).
 
-% Connections between locations
+% Connections between locations (for navigation)
 door(prairie, foothills).
 door(prairie, sinkhole).
 door(prairie, woods).
@@ -54,14 +71,14 @@ door(cave, river).
 door(river, dock).  % Added connection for boat travel
 door(dock, town).   % Added connection back to town
 
-% NPCs and monsters
+% NPCs and monsters in Hunt the Wumpus
 npc(archer).
 npc(fisherman).
 npc(blacksmith).
 monster(troll).
 monster(wumpus).
 
-% Items that can be picked up
+% Items that can be picked up or used
 item(matches).
 item(hay).
 item(diamond).
@@ -69,6 +86,10 @@ item(sword).
 item(arrow).
 item(bow).
 item(boat).
+
+% =======================
+% Game State Management
+% =======================
 
 % Initial state
 :- dynamic location/2.
@@ -78,7 +99,7 @@ item(boat).
 :- dynamic lit/1.
 :- dynamic defeated/1.
 
-% Initial facts
+% Initialize game state by resetting locations and inventory
 init_game :-
   retractall(location(_, _)),
   retractall(here(_)),
@@ -98,19 +119,23 @@ init_game :-
   asserta(location(diamond, river)),
   asserta(money(0)).
 
-% Command processing
+% =======================
+% Command Processing
+% =======================
+
+% Command loop to continuously read and execute player commands
 command_loop:-
   repeat,
   get_command(X),
   do(X),
   (victory; X == quit).
 
-% Victory condition
+% Victory condition, triggered when Wumpus is defeated
 victory:-
   defeated(wumpus),
   write('Congratulations! You have slain the Wumpus and won the game!'),nl.
 
-% Command handlers
+% Command handlers for user specified actions
 do(go(Place)):- goto(Place), !.
 do(look):- look, !.
 do(inventory):- inventory, !.
@@ -124,7 +149,11 @@ do(light(Item)):- light(Item), !.
 do(quit):- quit, !.
 do(_):- write('I don\'t understand that command.'), nl.
 
-% Attempt to move to a specified place
+% =======================
+% Movement and Navigation
+% =======================
+
+% Attempt to move to a specified place and handle all conditions
 goto(Place) :-
     room(Place),  % Check if it's a valid room
     here(Here),
@@ -152,6 +181,7 @@ can_go(Place):-
   write('(Maybe you are already here!)'),
   fail.
 
+% Define bidirectional connections
 connect(X,Y):- door(X,Y).
 connect(X,Y):- door(Y,X).
 
@@ -168,7 +198,11 @@ moveto(Place) :-
     retract(here(_)),
     asserta(here(Place)).
 
-% Look around
+% =======================
+% Look Around Actions
+% =======================
+
+% Look around location
 look:-
   here(Here),
   write('You are at the '), write(Here), nl,
@@ -189,26 +223,31 @@ list_items([Item|Rest]) :-
     tab(2), write(Item), nl,
     list_items(Rest).
 
+% List connected locations
 list_connections(Place):-
   connect(Place,X),
   tab(2),write(X),nl,
   fail.
 list_connections(_).
 
-% Inventory management with improved formatting
+% =======================
+% Inventory Management
+% =======================
+
+% Display player's inventory with formatting
 inventory:-
   write('You have:'), nl,
   list_possessions,
   money(M),
   write('Money: '), write(M), write(' coins'), nl.
 
-%% Inventory Management
+% Helper to list items in inventory
 list_possessions :-
     findall(X, have(X), Possessions),
     (Possessions = [] -> tab(2),write('nothing'), nl;
      list_items(Possessions)).
 
-% Item manipulation with fixed handling
+% Pick up an item if it exists in the current location
 take(Item):-
   here(Here),
   location(Item,Here),
@@ -219,8 +258,12 @@ take(Item):-
 take(Item):-
   write('There is no '), write(Item), write(' here.'), 
   nl.
+
+% =======================
+% NPC Interaction
+% =======================
                                                     
-% NPC interaction
+% Talk to an NPC if they are present in the current location
 talk(Person):-
   here(Here),
   location(Person,Here),
@@ -228,6 +271,7 @@ talk(Person):-
 talk(Person):-
   write(Person), write(' is not here.'), nl.
 
+% Define hints or dialogues for each NPC
 give_hint(archer):-
   write('The archer says: "I would trade my bow for a diamond!"'), nl.
 give_hint(fisherman):-
@@ -235,7 +279,11 @@ give_hint(fisherman):-
 give_hint(blacksmith):-
   write('The blacksmith says: "I will sell you a sword if you have money!"'), nl.
 
-% Combat system
+% =======================
+% Combat System
+% =======================
+
+% Engage in combat with a monster if conditions are met
 fight(Monster) :-
     monster(Monster),  % Check if it's a valid monster
     here(Here),
@@ -254,10 +302,12 @@ fight(Monster) :-
 fight(Entity) :-
     write('You cannot fight '), write(Entity), write('. It is not a valid enemy.'), nl.
 
+% Define conditions required to fight each type of monster
 can_fight(troll):- have(sword), !.
 can_fight(wumpus):- have(bow), have(arrow), !.
 can_fight(_):- fail.
 
+% Handle events after defeating specific monsters
 handle_victory(troll):-
   retract(location(troll,mountain)),
   asserta(location(arrow,mountain)),
@@ -267,7 +317,11 @@ handle_victory(wumpus):-
   asserta(defeated(wumpus)),
   write('You have slain the Wumpus!'), nl.
 
-% Buy an item
+% =======================
+% Item Transactions
+% =======================
+
+% Purchase an item if in the correct location and with enough money
 buy(sword) :-
     here(shop),
     money(M),
@@ -286,7 +340,7 @@ buy(Item) :-
     write('You cannot buy that type of item. '), write(Item), write(' is not a valid item.'),
     nl.
 
-% Sell boat at the dock
+% Sell an item at a specific location
 sell(boat) :-
     here(dock),
     have(boat),
@@ -297,46 +351,41 @@ sell(boat) :-
     asserta(money(NewM)),
     retract(have(boat)),
     write('You sold the boat for 100 coins.'), nl, !.
-% Attempt to sell boat without having it
-sell(boat) :-
+sell(boat) :- % Attempt to sell boat without having it
     here(dock),
     \+ have(boat),
     write('You don\'t have a boat to sell.'), nl, !.
-% Attempt to sell boat without diamond
-sell(boat) :-
+sell(boat) :- % Attempt to sell boat without diamond
     here(dock),
     have(boat),
     \+ have(diamond),
     write('You need to get the diamond before you can sell the boat.'), nl, !.
-% Trade diamond for bow at the canyon
-sell(diamond) :-
+sell(diamond) :- % Trade diamond for bow at the canyon
     here(canyon),
     have(diamond),
     retract(have(diamond)),
     asserta(have(bow)),
     write('The archer trades you a bow for the diamond.'), nl, !.
-% Attempt to trade diamond without having it
-sell(diamond) :-
+sell(diamond) :- % Attempt to trade diamond without having it
     here(canyon),
     \+ have(diamond),
     write('You don\'t have a diamond to trade.'), nl, !.
-% Attempt to sell a valid item in the wrong location
-sell(Item) :-
+sell(Item) :- % Attempt to sell a valid item in the wrong location
     item(Item),
     \+ have(Item),
     write('You don\'t have a '), write(Item), write(' to sell.'), nl, !.
-% Attempt to sell a valid item in the wrong location
-sell(Item) :-
+sell(Item) :- % Attempt to sell a valid item in the wrong location
     item(Item),
     write('You cannot sell the '), write(Item), write(' here.'), nl, !.
-% Attempt to sell an invalid item
-sell(Item) :-
+sell(Item) :- % Attempt to sell an invalid item
     \+ item(Item),
     write('You cannot sell a '), write(Item), write('. It is not a valid item.'), nl.
                                                             
-%% Transportation System
+% =======================
+% Transportation System
+% =======================
 
-% Ride the boat from river to dock
+% Ride a boat from river to dock, if conditions are met
 ride(boat) :-
     here(river),
     take(boat),
@@ -344,36 +393,28 @@ ride(boat) :-
     moveto(dock),
     write('You ride the boat to the dock.'), nl,
     look, !.
-
-% Attempt to ride boat without having it
-ride(boat) :-
+ride(boat) :- % Attempt to ride boat without having it
     here(river),
     \+ have(boat),
     write('You don\'t have a boat to ride.'), nl, !.
-
-% Attempt to ride boat without diamond
-ride(boat) :-
+ride(boat) :- % Attempt to ride boat without diamond
     here(river),
     have(boat),
     \+ have(diamond),
     write('You need to take the diamond first before you can use the boat.'), nl, !.
-
-% Attempt to ride boat in wrong location
-ride(boat) :-
+ride(boat) :- % Attempt to ride boat in wrong location
     \+ here(river),
     write('You can only ride the boat at the river.'), nl, !.
-
-% Attempt to ride a valid transport item
-ride(Transport) :-
+ride(Transport) :- % Attempt to ride a valid transport item
     item(Transport),
     write('You cannot ride the '), write(Transport), write(' here.'), nl, !.
-
-% Attempt to ride an invalid item
-ride(Transport) :-
+ride(Transport) :- % Attempt to ride an invalid item
     \+ item(Transport),
     write('You cannot ride a '), write(Transport), write('. It is not a valid transport.'), nl.
 
-%% Lighting System
+% =======================
+% Lighting System
+% =======================
 
 % Light the hay if player has hay and matches
 light(hay) :-
@@ -381,37 +422,36 @@ light(hay) :-
     have(matches),
     asserta(lit(hay)),
     write('You light the hay, illuminating the darkness.'), nl, !.
-
-% Attempt to light hay without matches
-light(hay) :-
+light(hay) :- % Attempt to light hay without matches
     have(hay),
     \+ have(matches),
     write('You need matches to light the hay.'), nl, !.
-
-% Attempt to light hay without having it
-light(hay) :-
+light(hay) :- % Attempt to light hay without having it
     \+ have(hay),
     write('You don\'t have any hay to light.'), nl, !.
-
-% Attempt to light matches (which can't be lit on their own)
-light(matches) :-
+light(matches) :- % Attempt to light matches (which can't be lit on their own)
     have(matches),
     write('You can\'t light the matches on their own. Try lighting something with them.'), nl, !.
-
-% Attempt to light a valid item that can't be lit
-light(Item) :-
+light(Item) :- % Attempt to light a valid item that can't be lit
     item(Item),
     write('You cannot light the '), write(Item), write('.'), nl, !.
-
-% Attempt to light an invalid item
-light(Item) :-
+light(Item) :- % Attempt to light an invalid item
     \+ item(Item),
     write('You cannot light a '), write(Item), write('. It is not a valid item.'), nl.
-% Quit game
+
+% =======================
+% Ending the Game
+% =======================
+
+% Ends the game session, displaying a farewell message
 quit:-
   write('Thanks for playing!'), nl.
 
-% Command parsing
+% =======================
+% Command Parsing System
+% =======================
+
+% Parse and execute player commands
 get_command(C) :- 
   read_line_to_string(user_input, String),
   tokenize_atom(String, L),
@@ -420,8 +460,8 @@ get_command(_) :-
   write('I don\'t understand, please try again.'), nl,
   fail.
 
+% Define and normalize command structures
 command(C,L) :- elim(NL,L), C =.. NL, !.
-
 elim([talk,X], [talk,to,the,X,'.']) :- !.
 elim([talk,X], [talk,to,X,'.']) :- !.
 elim(NL, [V,the,N,'.']) :- NL = [V,N], !.
