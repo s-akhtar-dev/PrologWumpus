@@ -98,6 +98,8 @@ item(boat).
 :- dynamic money/1.
 :- dynamic lit/1.
 :- dynamic defeated/1.
+:- dynamic traded/1.
+traded(none).
 
 % Initialize game state by resetting locations and inventory
 init_game :-
@@ -107,6 +109,8 @@ init_game :-
   retractall(money(_)),
   retractall(lit(_)),
   retractall(defeated(_)),
+  retractall(traded(_)),  % Clear any existing trade states
+  asserta(traded(none)),  % Initialize trade state
   asserta(here(prairie)),
   asserta(location(matches, foothills)),
   asserta(location(hay, woods)),
@@ -115,7 +119,7 @@ init_game :-
   asserta(location(blacksmith, shop)),
   asserta(location(troll, mountain)),
   asserta(location(wumpus, forest)),
-  asserta(location(boat, river)),  % Boat starts at river
+  asserta(location(boat, river)),
   asserta(location(diamond, river)),
   asserta(money(0)).
 
@@ -289,17 +293,30 @@ take(Item):-
 talk(Person):-
   here(Here),
   location(Person,Here),
-  give_hint(Person), !.
+  response_for_npc(Person), !.
 talk(Person):-
   write(Person), write(' is not here.'), nl.
 
 % Define hints or dialogues for each NPC
-give_hint(archer):-
-  write('The archer says: "I would trade my bow for a diamond!"'), nl.
-give_hint(fisherman):-
-  write('The fisherman says: "I would give you money for a boat!"'), nl.
-give_hint(blacksmith):-
-  write('The blacksmith says: "I will sell you a sword if you have money!"'), nl.
+response_for_npc(wumpus):- 
+  write('The Wumpus screams its name angrily, "WUMP. WUMP. WUMP"'), nl.
+response_for_npc(troll):- 
+  write('The Troll sneers and says, "You won\'t get past me so easily"'), nl.
+response_for_npc(fisherman):- 
+  (traded(fisherman) ->  % If the player already traded with the fisherman
+     write('The fisherman smiles. "Thanks for the boat. Enjoy the rest of your adventure!"'), nl; 
+     write('The fisherman tells you that he would give you money for a boat!'), nl
+  ).
+response_for_npc(blacksmith):- 
+  (traded(blacksmith) ->  % If the player already bought the sword
+     write('The blacksmith says, "I hope the sword serves you well."'), nl; 
+     write('The blacksmith says, "I will sell you a sword if you have money."'), nl
+  ).
+response_for_npc(archer):- 
+  (traded(archer) ->  % If the player already traded the diamond for a bow
+     write('The archer says, "Use the bow wisely in your quest."'), nl; 
+     write('The archer says, "I would trade my bow for a diamond!"'), nl
+  ).
 
 % =======================
 % Combat System
@@ -352,6 +369,7 @@ buy(sword) :-
     NewM is M - 100,
     asserta(money(NewM)),
     asserta(have(sword)),
+    asserta(traded(blacksmith)),
     write('You bought the sword for 100 coins.'), 
     nl, !.
 buy(sword) :-  % If not enough money
@@ -379,6 +397,7 @@ sell(boat) :-
     retract(money(M)),
     asserta(money(NewM)),
     retract(have(boat)),
+    asserta(traded(fisherman)),
     write('You sold the boat for 100 coins.'), nl, !.
 sell(boat) :- % Attempt to sell boat without having it
     here(dock),
@@ -393,6 +412,7 @@ sell(boat) :- % Attempt to sell boat without diamond
     retract(money(M)),
     asserta(money(NewM)),
     retract(have(boat)),
+    asserta(traded(fisherman)),
     write('You sold the boat for 100 coins.'), nl,
     write('Though, you may be missing something at the river...'), nl, !.
 sell(diamond) :- % Trade diamond for bow at the canyon
@@ -400,6 +420,7 @@ sell(diamond) :- % Trade diamond for bow at the canyon
     have(diamond),
     retract(have(diamond)),
     asserta(have(bow)),
+    asserta(traded(archer)),
     write('The archer trades you a bow for the diamond.'), nl, !.
 sell(diamond) :- % Attempt to trade diamond without having it
     here(canyon),
