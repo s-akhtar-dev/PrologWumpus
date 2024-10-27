@@ -345,23 +345,30 @@ handle_victory(wumpus):-
 
 % Purchase an item if in the correct location and with enough money
 buy(sword) :-
-    here(shop),
+    here(shop),  % Check if the player is at the shop
     money(M),
-    M >= 100,
+    M >= 100,  % Check if the player has enough money
     retract(money(M)),
     NewM is M - 100,
     asserta(money(NewM)),
     asserta(have(sword)),
     write('You bought the sword for 100 coins.'), 
     nl, !.
-buy(Item) :-
+buy(sword) :-  % If not enough money
+    here(shop),
+    money(M),
+    M < 100,
+    write('You do not have sufficient funds to buy the sword!'), nl,
+    write('Try selling something you have...'), nl, !.
+buy(sword) :-  % If not at the shop
+    \+ here(shop),
+    write('You cannot buy items unless you are at the shop.'), nl, !.
+buy(Item) :-  % If item is invalid
     item(Item),
-    write('You do not have sufficient funds to buy the '), write(Item), write('!'), nl,
-    write('Try selling something you have...'), 
-    nl, !.
-buy(Item) :-
-    write('You cannot buy that type of item. '), write(Item), write(' is not a valid item.'),
-    nl.
+    write('You cannot buy that type of item. '), write(Item), write(' is not a valid item.'), nl.
+buy(Item) :-  % If item is not defined
+    \+ item(Item),
+    write('You cannot buy a '), write(Item), write('. It is not a valid item.'), nl.
 
 % Sell an item at a specific location
 sell(boat) :-
@@ -416,6 +423,7 @@ sell(Item) :- % Attempt to sell an invalid item
 % Ride a boat from river to dock, if conditions are met
 ride(boat) :-
     here(river),  % Player must be at river
+    take(boat),
     location(boat, river),  % Boat must be at river
     retract(location(boat, river)),
     asserta(location(boat, dock)),  % Move boat to dock
