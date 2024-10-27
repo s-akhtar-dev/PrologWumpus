@@ -36,6 +36,7 @@ wumpus_world:-
   write('  light item.        - Light something'),nl,
   nl,
   write('Begin your adventure! Type "look." to start.'),nl,
+  look,
   command_loop.
 
 % =======================
@@ -68,8 +69,7 @@ door(town, shop).
 door(woods, forest).
 door(sinkhole, cave).
 door(cave, river).
-door(river, dock).  % Added connection for boat travel
-door(dock, town).   % Added connection back to town
+door(dock, town).
 
 % NPCs and monsters in Hunt the Wumpus
 npc(archer).
@@ -115,7 +115,7 @@ init_game :-
   asserta(location(blacksmith, shop)),
   asserta(location(troll, mountain)),
   asserta(location(wumpus, forest)),
-  asserta(location(boat, river)),
+  asserta(location(boat, river)),  % Boat starts at river
   asserta(location(diamond, river)),
   asserta(money(0)).
 
@@ -128,12 +128,25 @@ command_loop:-
   repeat,
   get_command(X),
   do(X),
-  (victory; X == quit).
+  (victory; X == end).
 
 % Victory condition, triggered when Wumpus is defeated
 victory:-
   defeated(wumpus),
   write('Congratulations! You have slain the Wumpus and won the game!'),nl.
+
+% =======================
+% Ending the Game
+% =======================
+
+% Ends the game session, displaying a farewell message
+quit:- 
+  not(defeated(wumpus)),
+  write('You are not allowed to quit! The Wumpus needs slaying!'), nl.
+
+end:- 
+  write('You ended the game! See you again soon.'), nl,
+  true.  % Ends the game session
 
 % Command handlers for user specified actions
 do(go(Place)):- goto(Place), !.
@@ -147,6 +160,7 @@ do(take(Item)):- take(Item), !.
 do(ride(Transport)):- ride(Transport), !.
 do(light(Item)):- light(Item), !.
 do(quit):- quit, !.
+do(end):- end, !.
 do(_):- write('I don\'t understand that command.'), nl.
 
 % =======================
@@ -158,14 +172,12 @@ goto(Place) :-
     room(Place),  % Check if it's a valid room
     here(Here),
     (Here = Place ->
-        write('You are already at '), write(Place), write('.'), nl
-    ;
+        write('You are already at '), write(Place), write('.'), nl, look;
         can_go(Place) ->
             check_conditions(Place),
             moveto(Place),
-            write('You moved to '), write(Place), write('!'), nl
-        ;
-        write('You can\'t get to '), write(Place), write(' from here.'), nl
+            write('You moved to '), write(Place), write('!'), nl, look;
+        write('You can\'t get to '), write(Place), write(' from here.'), nl, look
     ).
 goto(Place) :-
     \+ room(Place),  % Not a valid room
@@ -174,22 +186,22 @@ goto(_):- nl.
 
 % Check if movement to a place is possible
 can_go(Place):-
-  here(Here),
-  connect(Here,Place),!.
-can_go(Place):-
-  write('You can\'t get to '), write(Place), write(' from here.'), nl,
-  write('(Maybe you are already here!)'),
-  fail.
+    here(Here),
+    connect(Here,Place), !.
 
 % Define bidirectional connections
 connect(X,Y):- door(X,Y).
 connect(X,Y):- door(Y,X).
 
 % Check conditions for entering a location
+check_conditions(cave) :-
+    lit(hay), 
+    write('You can now see the river!'), nl,
+    !.
 check_conditions(river) :-
     lit(hay), !.
 check_conditions(river) :-
-    write('It is too dark to enter the river. You need some light.'), nl,
+    write('It is too dark to enter the river. You need some light.'),
     !, fail.
 check_conditions(_).
 
@@ -209,7 +221,10 @@ look:-
   write('You can see:'), nl,
   list_visible(Here),
   write('You can go to:'), nl,
-  list_connections(Here).
+  list_connections(Here),
+  (Here = cave, not(lit(hay)) -> 
+      write('You might need to light something to see more of the map...'), nl
+  ; true).
 
 % List all visible items in the current location
 list_visible(Place) :-
@@ -225,9 +240,10 @@ list_items([Item|Rest]) :-
 
 % List connected locations
 list_connections(Place):-
-  connect(Place,X),
-  tab(2),write(X),nl,
-  fail.
+    connect(Place, X),
+    (X = river, not(lit(hay)) -> true; 
+     tab(2), write(X), nl),
+    fail.
 list_connections(_).
 
 % =======================
@@ -248,6 +264,12 @@ list_possessions :-
      list_items(Possessions)).
 
 % Pick up an item if it exists in the current location
+take(boat) :-
+    here(Here),
+    location(boat, Here),
+    asserta(have(boat)),
+    write('The boat is now in your inventory!'), 
+    nl, !.
 take(Item):-
   here(Here),
   location(Item,Here),
@@ -334,7 +356,8 @@ buy(sword) :-
     nl, !.
 buy(Item) :-
     item(Item),
-    write('You cannot buy the '), write(Item), write(' here.'), 
+    write('You do not have sufficient funds to buy the '), write(Item), write('!'), nl,
+    write('Try selling something you have...'), 
     nl, !.
 buy(Item) :-
     write('You cannot buy that type of item. '), write(Item), write(' is not a valid item.'),
@@ -344,7 +367,6 @@ buy(Item) :-
 sell(boat) :-
     here(dock),
     have(boat),
-    have(diamond),
     money(M),
     NewM is M + 100,
     retract(money(M)),
@@ -358,8 +380,14 @@ sell(boat) :- % Attempt to sell boat without having it
 sell(boat) :- % Attempt to sell boat without diamond
     here(dock),
     have(boat),
-    \+ have(diamond),
-    write('You need to get the diamond before you can sell the boat.'), nl, !.
+    have(diamond),
+    money(M),
+    NewM is M + 100,
+    retract(money(M)),
+    asserta(money(NewM)),
+    retract(have(boat)),
+    write('You sold the boat for 100 coins.'), nl,
+    write('Though, you may be missing something at the river...'), nl, !.
 sell(diamond) :- % Trade diamond for bow at the canyon
     here(canyon),
     have(diamond),
@@ -387,28 +415,27 @@ sell(Item) :- % Attempt to sell an invalid item
 
 % Ride a boat from river to dock, if conditions are met
 ride(boat) :-
-    here(river),
-    take(boat),
-    have(diamond),
-    moveto(dock),
+    here(river),  % Player must be at river
+    location(boat, river),  % Boat must be at river
+    retract(location(boat, river)),
+    asserta(location(boat, dock)),  % Move boat to dock
+    moveto(dock),  % Move player to dock
     write('You ride the boat to the dock.'), nl,
     look, !.
-ride(boat) :- % Attempt to ride boat without having it
+ride(boat) :-
     here(river),
-    \+ have(boat),
-    write('You don\'t have a boat to ride.'), nl, !.
-ride(boat) :- % Attempt to ride boat without diamond
-    here(river),
-    have(boat),
-    \+ have(diamond),
-    write('You need to take the diamond first before you can use the boat.'), nl, !.
-ride(boat) :- % Attempt to ride boat in wrong location
+    \+ location(boat, river),
+    write('There is no boat here to ride.'), nl, !.
+ride(boat) :-
+    here(dock),
+    write('The boat cannot be ridden from the dock.'), nl, !.
+ride(boat) :-
     \+ here(river),
     write('You can only ride the boat at the river.'), nl, !.
-ride(Transport) :- % Attempt to ride a valid transport item
+ride(Transport) :-
     item(Transport),
     write('You cannot ride the '), write(Transport), write(' here.'), nl, !.
-ride(Transport) :- % Attempt to ride an invalid item
+ride(Transport) :-
     \+ item(Transport),
     write('You cannot ride a '), write(Transport), write('. It is not a valid transport.'), nl.
 
@@ -438,14 +465,6 @@ light(Item) :- % Attempt to light a valid item that can't be lit
 light(Item) :- % Attempt to light an invalid item
     \+ item(Item),
     write('You cannot light a '), write(Item), write('. It is not a valid item.'), nl.
-
-% =======================
-% Ending the Game
-% =======================
-
-% Ends the game session, displaying a farewell message
-quit:-
-  write('Thanks for playing!'), nl.
 
 % =======================
 % Command Parsing System
